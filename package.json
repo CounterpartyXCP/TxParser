@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
