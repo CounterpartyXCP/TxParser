@@ -29,5 +29,7 @@ export type {
   DestroyPayload,
   TransactionPayload,
   ParsedTransaction,
+  TaprootCommitPayload,
+  UnknownPayload,
 } from './types';
 

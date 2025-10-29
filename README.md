@@ -129,6 +129,23 @@ npm run build
 npm run dev
 ```
 
+### Testing
+
+The project includes a comprehensive test suite with **99.52% code coverage** and **100% line coverage**.
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+See [tests/README.md](./tests/README.md) for detailed test documentation.
+
 ## Protocol Details
 
 ### OP_RETURN Format
