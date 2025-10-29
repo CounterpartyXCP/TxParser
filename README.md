@@ -2,6 +2,7 @@
 
 [![Tests](https://github.com/CounterpartyXCP/TxParser/actions/workflows/test.yml/badge.svg)](https://github.com/CounterpartyXCP/TxParser/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/CounterpartyXCP/TxParser/graph/badge.svg?token=45D6G1ESFV)](https://codecov.io/gh/CounterpartyXCP/TxParser)
+[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white)](https://github.com/prettier/prettier)
 ![Node.js](https://img.shields.io/badge/node-20%20%7C%2022-brightgreen)
 
 A TypeScript library for parsing Counterparty protocol transactions from Bitcoin blockchain data. Supports both legacy OP_RETURN and modern Taproot reveal formats.
