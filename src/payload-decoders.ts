@@ -93,11 +93,11 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
     if (firstByte === 0x01) {
       // P2PKH - use all remaining bytes as hash (typically 20 bytes)
       const payment = btc.payments.p2pkh({ hash: data, network: btcNetwork });
-      return payment.address || `0x${shortAddressHex}`;
+      return payment.address!;
     } else if (firstByte === 0x02) {
       // P2SH - use all remaining bytes as hash (typically 20 bytes)
       const payment = btc.payments.p2sh({ hash: data, network: btcNetwork });
-      return payment.address || `0x${shortAddressHex}`;
+      return payment.address!;
     } else if (firstByte === 0x03) {
       // Segwit format: 0x03 + witness_version (1 byte) + witness program (variable length)
       // P2WPKH: 22 bytes total (tag + version + 20-byte program)
@@ -132,15 +132,15 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
       if (witnessVersion === 0 && data.length === 20) {
         // P2WPKH: witness version 0 with 20-byte hash
         const payment = btc.payments.p2wpkh({ hash: data, network: btcNetwork });
-        return payment.address || `0x${shortAddressHex}`;
+        return payment.address!;
       } else if (witnessVersion === 0 && data.length === 32) {
         // P2WSH: witness version 0 with 32-byte hash
         const payment = btc.payments.p2wsh({ hash: data, network: btcNetwork });
-        return payment.address || `0x${shortAddressHex}`;
+        return payment.address!;
       } else if (witnessVersion === 1 && data.length === 32) {
         // P2TR: witness version 1 with 32-byte pubkey
         const payment = btc.payments.p2tr({ pubkey: data, network: btcNetwork });
-        return payment.address || `0x${shortAddressHex}`;
+        return payment.address!;
       }
     }
     
@@ -148,10 +148,10 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
     // Use the network's standard versions
     if (firstByte === btcNetwork.pubKeyHash) {
       const payment = btc.payments.p2pkh({ hash: data, network: btcNetwork });
-      return payment.address || `0x${shortAddressHex}`;
+      return payment.address!;
     } else if (firstByte === btcNetwork.scriptHash) {
       const payment = btc.payments.p2sh({ hash: data, network: btcNetwork });
-      return payment.address || `0x${shortAddressHex}`;
+      return payment.address!;
     }
     
     // Unknown version byte - return hex

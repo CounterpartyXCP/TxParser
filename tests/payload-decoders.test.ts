@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { encode as cborEncode } from 'cbor-x';
 import * as btc from 'bitcoinjs-lib';
 import {
@@ -116,6 +116,12 @@ describe('shortAddressBytesToAddress', () => {
     expect(result).toMatch(/^(bc1p|0x)/);
   });
 
+  it('should return hex for tag 0x03 with insufficient data', () => {
+    const shortAddress = Buffer.from([0x03, 0x00]);
+    const result = shortAddressBytesToAddress(shortAddress.toString('hex'), network);
+    expect(result).toBe(`0x${shortAddress.toString('hex')}`);
+  });
+
   it('should handle segwit marker format (0x80 + witness version)', () => {
     const hash = Buffer.from('89abcdefabbaabbaabbaabbaabbaabbaabbaabba', 'hex');
     const shortAddress = Buffer.concat([Buffer.from([0x80]), hash]); // 0x80 = version 0
@@ -155,6 +161,13 @@ describe('shortAddressBytesToAddress', () => {
     
     const result = shortAddressBytesToAddress(shortAddress.toString('hex'), network);
     expect(result).toMatch(/^3/); // P2SH addresses start with '3'
+  });
+
+  it('should fallback to hex for legacy format with invalid hash length', () => {
+    const invalidHash = Buffer.alloc(10);
+    const shortAddress = Buffer.concat([Buffer.from([network.pubKeyHash]), invalidHash]);
+    const result = shortAddressBytesToAddress(shortAddress.toString('hex'), network);
+    expect(result).toBe(`0x${shortAddress.toString('hex')}`);
   });
 
   it('should return hex for invalid short address', () => {
@@ -253,6 +266,23 @@ describe('decodeEnhancedSend', () => {
     expect(result.memo).toBe('');
   });
 
+  it('should decode enhanced send with non-Buffer address', () => {
+    // Test the branch where decoded[2] is not a Buffer
+    const payload = cborEncode([1n, 500, new Uint8Array([0x01, ...Array(20).fill(0xaa)])]);
+    const result = decodeEnhancedSend(payload, network);
+    
+    expect(result.asset).toBe('XCP');
+    expect(result.quantity).toBe('500');
+  });
+
+  it('should decode enhanced send with non-Buffer memo', () => {
+    // Test the branch where memo is not a Buffer
+    const payload = cborEncode([1n, 500, Buffer.from([0x01, ...Array(20).fill(0xaa)]), new Uint8Array([0x01, 0x02])]);
+    const result = decodeEnhancedSend(payload, network);
+    
+    expect(result.memo).toBeDefined();
+  });
+
   it('should throw error for invalid payload', () => {
     const invalidPayload = cborEncode([1n]); // Missing required fields
     expect(() => decodeEnhancedSend(invalidPayload, network)).toThrow('Invalid enhanced send payload');
@@ -282,6 +312,20 @@ describe('decodeSweep', () => {
     
     expect(result.flags).toBe(0);
     expect(result.memo).toBe('');
+  });
+
+  it('should decode sweep with non-Buffer address', () => {
+    const payload = cborEncode([new Uint8Array([0x01, ...Array(20).fill(0xaa)]), 0]);
+    const result = decodeSweep(payload, network);
+    
+    expect(result.flags).toBe(0);
+  });
+
+  it('should decode sweep with non-Buffer memo', () => {
+    const payload = cborEncode([Buffer.from([0x01, ...Array(20).fill(0xaa)]), 1, new Uint8Array([0xaa, 0xbb])]);
+    const result = decodeSweep(payload, network);
+    
+    expect(result.memo).toBeDefined();
   });
 
   it('should throw error for invalid payload', () => {
@@ -328,6 +372,20 @@ describe('decodeIssuance', () => {
     expect(result.description).toBe('ffaa');
   });
 
+  it('should decode issuance with typed-array description', () => {
+    const payload = cborEncode([
+      17576n,
+      1000,
+      true,
+      false,
+      false,
+      'text/plain',
+      new Uint8Array(Buffer.from('Typed issuance', 'utf8'))
+    ]);
+    const result = decodeIssuance(payload);
+    expect(result.description).toBe('Typed issuance');
+  });
+
   it('should throw error for invalid payload', () => {
     const invalidPayload = cborEncode([100n, 1000]);
     expect(() => decodeIssuance(invalidPayload)).toThrow('Invalid issuance payload');
@@ -355,6 +413,54 @@ describe('decodeIssuanceSubasset', () => {
     expect(result.compacted_subasset_length).toBe(10);
     expect(result.compacted_subasset_longname).toBe(compactedName.toString('hex'));
     expect(result.description).toBe('Subasset description');
+  });
+
+  it('should decode issuance subasset without description', () => {
+    const payload = cborEncode([
+      17576n,
+      1000,
+      1,
+      0,
+      0,
+      10,
+      Buffer.from('subasset', 'utf8'),
+      'text/plain'
+    ]);
+    const result = decodeIssuanceSubasset(payload);
+    expect(result.description).toBe(null);
+  });
+
+  it('should decode issuance subasset with typed-array description', () => {
+    const payload = cborEncode([
+      17576n,
+      1000,
+      1,
+      0,
+      0,
+      10,
+      Buffer.from('subasset', 'utf8'),
+      'text/plain',
+      new Uint8Array(Buffer.from('typed subasset', 'utf8'))
+    ]);
+    const result = decodeIssuanceSubasset(payload);
+    expect(result.description).toBe('typed subasset');
+  });
+
+  it('should decode issuance subasset with typed-array fields', () => {
+    const payload = cborEncode([
+      17576n,
+      1000,
+      1,
+      0,
+      0,
+      10,
+      new Uint8Array(Buffer.from('subasset', 'utf8')),
+      'text/plain',
+      new Uint8Array(Buffer.from('typed subasset', 'utf8'))
+    ]);
+    const result = decodeIssuanceSubasset(payload);
+    expect(result.compacted_subasset_longname).toBe(Buffer.from('subasset', 'utf8').toString('hex'));
+    expect(result.description).toBe('typed subasset');
   });
 
   it('should throw error for invalid payload', () => {
@@ -388,6 +494,12 @@ describe('decodeBroadcast', () => {
     expect(result.text).toBe('');
   });
 
+  it('should decode broadcast text from typed array', () => {
+    const payload = cborEncode([1234567890, 2.5, 2500000, 'text/plain', new Uint8Array(Buffer.from('Typed text', 'utf8'))]);
+    const result = decodeBroadcast(payload);
+    expect(result.text).toBe('Typed text');
+  });
+
   it('should throw error for invalid payload', () => {
     const invalidPayload = cborEncode([123, 0.5]);
     expect(() => decodeBroadcast(invalidPayload)).toThrow('Invalid broadcast payload');
@@ -411,6 +523,32 @@ describe('decodeFairminter', () => {
     expect(result.price).toBe('1000');
     expect(result.divisible).toBe(true);
     expect(result.description).toBe('Fair minter');
+  });
+
+  it('should handle fairminter payload without description', () => {
+    const fields = [
+      1n, 0n, '10', '5', '1', '2', '100', '0',
+      10, 20, '30', 40, 5000, false, true, false, false, ''
+    ];
+
+    const payload = cborEncode(fields);
+    const result = decodeFairminter(payload);
+
+    expect(result.description).toBe('');
+    expect(result.mime_type).toBe('');
+  });
+
+  it('should handle fairminter payload with typed-array description', () => {
+    const description = new Uint8Array(Buffer.from('typed desc', 'utf8'));
+    const fields = [
+      2n, 1n, '20', '10', '2', '3', '200', '0',
+      11, 21, '31', 41, 6000, true, false, true, true, 'text/plain', description
+    ];
+
+    const payload = cborEncode(fields);
+    const result = decodeFairminter(payload);
+
+    expect(result.description).toBe('typed desc');
   });
 
   it('should throw error for invalid payload', () => {
@@ -454,6 +592,17 @@ describe('decodeAttach', () => {
     expect(result.asset).toBe('MYASSET');
     expect(result.quantity).toBe('500');
     expect(result.destination_vout).toBe('');
+  });
+
+  it('should fallback to empty strings when fields are missing', () => {
+    const assetMissing = Buffer.from('|250|1', 'utf8');
+    const resultAssetMissing = decodeAttach(assetMissing);
+    expect(resultAssetMissing.asset).toBe('');
+    expect(resultAssetMissing.quantity).toBe('250');
+
+    const quantityMissing = Buffer.from('ASSET||1', 'utf8');
+    const resultQuantityMissing = decodeAttach(quantityMissing);
+    expect(resultQuantityMissing.quantity).toBe('');
   });
 
   it('should throw error for invalid payload', () => {
@@ -576,6 +725,23 @@ describe('decodeDispenser', () => {
     
     expect(result.action_address).toBeDefined();
     expect(result.oracle_address).toBeDefined();
+  });
+
+  it('should decode dispenser with only action address', () => {
+    const buffer = Buffer.alloc(54);
+    buffer.writeBigUInt64BE(1n, 0);
+    buffer.writeBigInt64BE(100n, 8);
+    buffer.writeBigInt64BE(1000n, 16);
+    buffer.writeBigInt64BE(5000n, 24);
+    buffer.writeUInt8(1, 32);
+
+    const actionAddress = Buffer.concat([Buffer.from([0x01]), Buffer.alloc(20, 0xaa)]);
+    actionAddress.copy(buffer, 33);
+
+    const result = decodeDispenser(buffer, network);
+
+    expect(result.action_address).toBeDefined();
+    expect(result.oracle_address).toBeUndefined();
   });
 
   it('should throw error for invalid payload', () => {
@@ -720,6 +886,22 @@ describe('decodePayload', () => {
     
     expect(result).toHaveProperty('raw');
     expect(result).toHaveProperty('error');
+  });
+
+  it('should return raw hex with unknown error when decoder throws non-error', () => {
+    const payload = cborEncode([1n, 500, new Uint8Array([0x01, ...Array(20).fill(0xaa)])]);
+
+    const originalBufferFrom = Buffer.from;
+    (Buffer as any).from = () => {
+      throw 'buffer failure';
+    };
+
+    try {
+      const result = decodePayload(2, payload, btc.networks.bitcoin);
+      expect(result).toEqual({ raw: payload.toString('hex'), error: 'Unknown error' });
+    } finally {
+      Buffer.from = originalBufferFrom;
+    }
   });
 
   it('should handle all message types', () => {

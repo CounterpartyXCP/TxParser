@@ -141,6 +141,11 @@ describe('parse_op_return', () => {
     expect(parse_op_return(script, txid, network)).toBeNull();
   });
 
+  it('should return null when OP_RETURN length byte is missing', () => {
+    const script = Buffer.from([0x6a]);
+    expect(parse_op_return(script, txid, network)).toBeNull();
+  });
+
   it('should handle unknown message types', () => {
     // For message IDs > 255, need to use long format (0x00 + 4 bytes)
     const longIdMessage = Buffer.alloc(6);
@@ -201,6 +206,50 @@ describe('parse_op_return', () => {
       const result = parse_op_return(script, txid, network);
       expect(result?.message_name).toBe(name);
     });
+  });
+
+  it('should handle OP_PUSHDATA4 (0x4e)', () => {
+    const payload = cborEncode([1n, 1000, Buffer.from([0x01, ...Array(20).fill(0xee)])]);
+    const script = createOpReturn(2, payload, txid);
+    
+    // Create script with OP_PUSHDATA4
+    const scriptPushdata4 = Buffer.concat([
+      Buffer.from([0x6a, 0x4e]),
+      Buffer.from([script.length - 2, 0x00, 0x00, 0x00]), // 4 bytes length (little-endian)
+      script.subarray(2)
+    ]);
+    
+    const result = parse_op_return(scriptPushdata4, txid, network);
+    expect(result?.message_name).toBe('enhanced_send');
+  });
+
+  it('should return null on parsing error with invalid transaction', () => {
+    // Create a malformed script that will trigger an error
+    const malformedScript = Buffer.from([0x6a, 0x01]);
+    expect(parse_op_return(malformedScript, 'invalid_txid', network)).toBeNull();
+  });
+
+  it('should return null when message type parsing fails', () => {
+    const invalidMessage = Buffer.from([0x00, 0xaa, 0xbb, 0xcc]); // Long ID but too short
+    const plaintext = Buffer.concat([PREFIX_BYTES, invalidMessage]);
+    const key = Buffer.from(txid, 'hex');
+    const encrypted = rc4Encrypt(key, plaintext);
+    const script = Buffer.concat([
+      Buffer.from([0x6a, encrypted.length]),
+      encrypted
+    ]);
+
+    expect(parse_op_return(script, txid, network)).toBeNull();
+  });
+
+  it('should handle decryption error with malformed encrypted data', () => {
+    // Create a script that will cause an error during decoding
+    const payload = Buffer.alloc(10, 0xff);
+    const script = Buffer.concat([Buffer.from([0x6a, payload.length]), payload]);
+    
+    // Use invalid txid that may cause issues
+    const result = parse_op_return(script, 'zz', network);
+    expect(result).toBeNull();
   });
 });
 

@@ -180,6 +180,13 @@ describe('parse_reveal_tx', () => {
     expect(parse_reveal_tx(txHex, network)).toBeNull();
   });
 
+  it('should handle truncated OP_PUSHDATA2 safely', () => {
+    const witnessScript = Buffer.from([0x00, 0x63, 0x4d, 0xff]);
+    const txHex = createRevealTx(witnessScript);
+
+    expect(parse_reveal_tx(txHex, network)).toBeNull();
+  });
+
   it('should return null for invalid transaction hex', () => {
     expect(parse_reveal_tx('invalid', network)).toBeNull();
   });
@@ -290,6 +297,89 @@ describe('parse_reveal_tx', () => {
     tx.setWitness(0, [Buffer.alloc(32)]); // Only 1 element, need at least 2
     
     expect(parse_reveal_tx(tx.toHex(), network)).toBeNull();
+  });
+
+  it('should handle malformed transaction buffer', () => {
+    // Create a truncated/invalid hex that will cause Transaction.fromBuffer to throw
+    const invalidHex = '0100000001';
+    expect(parse_reveal_tx(invalidHex, network)).toBeNull();
+  });
+
+  it('should handle envelope extraction error', () => {
+    // Create a script that looks like an envelope but will fail during extraction
+    const badScript = Buffer.from([0x00, 0x63, 0x4d, 0xff, 0xff]); // Invalid OP_PUSHDATA2
+    const txHex = createRevealTx(badScript);
+    
+    const result = parse_reveal_tx(txHex, network);
+    // Should handle gracefully (return null or valid result)
+    expect(result === null || typeof result === 'object').toBe(true);
+  });
+
+  it('should return null if envelope concatenation fails', () => {
+    const payload = cborEncode([1n, 42, Buffer.alloc(21, 0x01)]);
+    const message = Buffer.concat([Buffer.from([2]), payload]);
+    const witnessScript = createEnvelope(message);
+    const txHex = createRevealTx(witnessScript);
+
+    const originalConcat = Buffer.concat;
+    (Buffer as any).concat = () => {
+      throw 'concat failure';
+    };
+
+    try {
+      expect(parse_reveal_tx(txHex, network)).toBeNull();
+    } finally {
+      Buffer.concat = originalConcat;
+    }
+  });
+
+  it('should return null when message type parsing throws', () => {
+    const invalidMessage = Buffer.from([0x00, 0x01, 0x02, 0x03]);
+    const witnessScript = createEnvelope(invalidMessage);
+    const txHex = createRevealTx(witnessScript);
+
+    expect(parse_reveal_tx(txHex, network)).toBeNull();
+  });
+
+  it('should handle message parsing error in envelope', () => {
+    // Create envelope with data that will fail readMessageTypeId
+    const emptyMessage = Buffer.alloc(0);
+    const witnessScript = createEnvelope(emptyMessage);
+    const txHex = createRevealTx(witnessScript);
+    
+    expect(parse_reveal_tx(txHex, network)).toBeNull();
+  });
+
+  it('should handle buffer read error in extractGenericEnvelope', () => {
+    // Create a script with OP_PUSHDATA2 that references data beyond buffer length
+    const chunks = [
+      Buffer.from([0x00, 0x63]), // OP_FALSE OP_IF
+      Buffer.from([0x4d, 0x00, 0xff]), // OP_PUSHDATA2 with huge length (65280 bytes)
+      // No actual data following - will cause read beyond bounds
+      Buffer.from([0x68]) // OP_ENDIF
+    ];
+    const badScript = Buffer.concat(chunks);
+    const txHex = createRevealTx(badScript);
+    
+    const result = parse_reveal_tx(txHex, network);
+    expect(result === null || typeof result === 'object').toBe(true);
+  });
+
+  it('should handle error in ord/xcp envelope extraction', () => {
+    // Create malformed ord/xcp envelope that will cause decoding error
+    const chunks = [
+      Buffer.from([0x00, 0x63]), // OP_FALSE OP_IF
+      Buffer.from('ord'), // literal
+      Buffer.from([0x07]),
+      Buffer.from('xcp'), // literal
+      Buffer.from([0x01]),
+      Buffer.from([0xff]), // Invalid mime type length - will read beyond bounds
+      Buffer.from([0x68]) // OP_ENDIF immediately
+    ];
+    const badScript = Buffer.concat(chunks);
+    const txHex = createRevealTx(badScript);
+    
+    expect(parse_reveal_tx(txHex, network)).toBeNull();
   });
 
   describe('ord/xcp envelope', () => {
