@@ -22,7 +22,7 @@ import type {
 
 /**
  * Convert asset_id to asset name according to Counterparty protocol
- * 
+ *
  * Rules (all protocol changes enabled):
  * - 0 → BTC, 1 → XCP
  * - If asset_id >= 26^12 + 1: numeric asset → "A" + str(asset_id)
@@ -30,43 +30,43 @@ import type {
  */
 export function assetIdToName(assetId: string | bigint): string {
   const id = typeof assetId === 'string' ? BigInt(assetId) : assetId;
-  
+
   // Special cases
   if (id === BigInt(0)) return 'BTC';
   if (id === BigInt(1)) return 'XCP';
-  
+
   const NUMERIC_THRESHOLD = BigInt(26) ** BigInt(12) + BigInt(1); // 95428956661682176 + 1
   const ALPHABETIC_THRESHOLD = BigInt(26) ** BigInt(3); // 17576
-  
+
   // Numeric assets: >= 26^12 + 1
   if (id >= NUMERIC_THRESHOLD) {
     return `A${id.toString()}`;
   }
-  
+
   // Alphabetic assets: >= 26^3
   if (id >= ALPHABETIC_THRESHOLD) {
     // Convert to base-26 alphabetic (A=1, B=2, ..., Z=26)
     // Similar to Excel column naming
     let remaining = id;
     let name = '';
-    
+
     while (remaining > BigInt(0)) {
       remaining = remaining - BigInt(1); // Make it 1-based
       const digit = remaining % BigInt(26);
       name = String.fromCharCode(65 + Number(digit)) + name; // 65 = 'A'
       remaining = remaining / BigInt(26);
     }
-    
+
     return name;
   }
-  
+
   // Below threshold: numeric representation
   return `A${id.toString()}`;
 }
 
 /**
  * Convert short_address_bytes (variable length hex string) to full Bitcoin address
- * 
+ *
  * Format (all protocol changes enabled):
  * - Legacy P2PKH/P2SH: 1-byte version/tag + hash → Base58Check
  * - Segwit marker: if first byte is 0x80..0x8F, it's 0x80 + witver followed by witness program → Bech32/Bech32m
@@ -78,17 +78,17 @@ export function assetIdToName(assetId: string | bigint): string {
 export function shortAddressBytesToAddress(shortAddressHex: string, network: btc.Network): string {
   try {
     const btcNetwork = network;
-    
+
     const buffer = Buffer.from(shortAddressHex, 'hex');
-    
+
     // Accept any reasonable length (at least 2 bytes: tag + some data)
     if (buffer.length < 2) {
       throw new Error(`Invalid short address length: ${buffer.length}`);
     }
-    
+
     const firstByte = buffer[0];
     const data = buffer.subarray(1);
-    
+
     // Generalized tags (0x01, 0x02, 0x03)
     if (firstByte === 0x01) {
       // P2PKH - use all remaining bytes as hash (typically 20 bytes)
@@ -102,11 +102,11 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
       // Segwit format: 0x03 + witness_version (1 byte) + witness program (variable length)
       // P2WPKH: 22 bytes total (tag + version + 20-byte program)
       // P2TR: 34 bytes total (tag + version + 32-byte program)
-      
+
       if (data.length >= 2) {
         const witnessVersion = data[0];
         const witnessProgram = data.subarray(1);
-        
+
         if (witnessVersion === 0 && witnessProgram.length === 20) {
           // P2WPKH: witness version 0 with 20-byte hash160
           const payment = btc.payments.p2wpkh({ hash: witnessProgram, network: btcNetwork });
@@ -121,14 +121,14 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
           if (payment.address) return payment.address;
         }
       }
-      
+
       return `0x${shortAddressHex}`;
     }
-    
+
     // Segwit marker (0x80..0x8F)
     if (firstByte >= 0x80 && firstByte <= 0x8f) {
       const witnessVersion = firstByte - 0x80;
-      
+
       if (witnessVersion === 0 && data.length === 20) {
         // P2WPKH: witness version 0 with 20-byte hash
         const payment = btc.payments.p2wpkh({ hash: data, network: btcNetwork });
@@ -143,7 +143,7 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
         return payment.address!;
       }
     }
-    
+
     // Legacy Base58Check (default)
     // Use the network's standard versions
     if (firstByte === btcNetwork.pubKeyHash) {
@@ -153,7 +153,7 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
       const payment = btc.payments.p2sh({ hash: data, network: btcNetwork });
       return payment.address!;
     }
-    
+
     // Unknown version byte - return hex
     return `0x${shortAddressHex}`;
   } catch (error) {
@@ -169,7 +169,7 @@ export function shortAddressBytesToAddress(shortAddressHex: string, network: btc
 export function decodeTextOrHex(buffer: Buffer, mimeType: string): string {
   const mimeTypeLower = (mimeType || '').toLowerCase().trim();
   const isTextType = mimeTypeLower === '' || mimeTypeLower.startsWith('text');
-  
+
   if (isTextType) {
     try {
       // Try to decode as UTF-8
@@ -183,7 +183,7 @@ export function decodeTextOrHex(buffer: Buffer, mimeType: string): string {
       // Fall through to hex
     }
   }
-  
+
   // Return hex for non-text types or if UTF-8 decoding failed
   return buffer.toString('hex');
 }
@@ -196,9 +196,9 @@ export function readMessageTypeId(message: Buffer): { id: number; rest: Buffer }
   if (message.length === 0) {
     throw new Error('Empty message');
   }
-  
+
   const firstByte = message[0];
-  
+
   if (firstByte > 0) {
     // Short ID (1 byte)
     return {
@@ -223,24 +223,24 @@ export function readMessageTypeId(message: Buffer): { id: number; rest: Buffer }
  */
 export function decodeEnhancedSend(payload: Buffer, network: btc.Network): EnhancedSendPayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 3) {
     throw new Error('Invalid enhanced send payload');
   }
-  
+
   const assetId = decoded[0]?.toString();
-  const shortAddressBytes = Buffer.isBuffer(decoded[2]) 
-    ? decoded[2].toString('hex') 
+  const shortAddressBytes = Buffer.isBuffer(decoded[2])
+    ? decoded[2].toString('hex')
     : Buffer.from(decoded[2]).toString('hex');
-  
+
   return {
     asset: assetIdToName(assetId),
     quantity: decoded[1]?.toString(),
     address: shortAddressBytesToAddress(shortAddressBytes, network),
-    memo: decoded[3] 
-      ? (Buffer.isBuffer(decoded[3]) 
-          ? decoded[3].toString('hex') 
-          : Buffer.from(decoded[3]).toString('hex'))
+    memo: decoded[3]
+      ? Buffer.isBuffer(decoded[3])
+        ? decoded[3].toString('hex')
+        : Buffer.from(decoded[3]).toString('hex')
       : '',
   };
 }
@@ -251,22 +251,22 @@ export function decodeEnhancedSend(payload: Buffer, network: btc.Network): Enhan
  */
 export function decodeSweep(payload: Buffer, network: btc.Network): SweepPayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 2) {
     throw new Error('Invalid sweep payload');
   }
-  
+
   const shortAddressBytes = Buffer.isBuffer(decoded[0])
     ? decoded[0].toString('hex')
     : Buffer.from(decoded[0]).toString('hex');
-  
+
   return {
     address: shortAddressBytesToAddress(shortAddressBytes, network),
     flags: decoded[1],
     memo: decoded[2]
-      ? (Buffer.isBuffer(decoded[2])
-          ? decoded[2].toString('hex')
-          : Buffer.from(decoded[2]).toString('hex'))
+      ? Buffer.isBuffer(decoded[2])
+        ? decoded[2].toString('hex')
+        : Buffer.from(decoded[2]).toString('hex')
       : '',
   };
 }
@@ -277,20 +277,20 @@ export function decodeSweep(payload: Buffer, network: btc.Network): SweepPayload
  */
 export function decodeIssuance(payload: Buffer): IssuancePayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 5) {
     throw new Error('Invalid issuance payload');
   }
-  
+
   const assetId = decoded[0]?.toString();
   const mimeType = decoded[5] || '';
-  
+
   let description = null;
   if (decoded[6]) {
     const descBuffer = Buffer.isBuffer(decoded[6]) ? decoded[6] : Buffer.from(decoded[6]);
     description = decodeTextOrHex(descBuffer, mimeType);
   }
-  
+
   return {
     asset: assetIdToName(assetId),
     quantity: decoded[1]?.toString(),
@@ -304,25 +304,25 @@ export function decodeIssuance(payload: Buffer): IssuancePayload {
 
 /**
  * Decode Issuance Subasset (ID = 21, 23)
- * CBOR array: [asset_id:uint64, quantity:int, divisible:int(0|1), lock:int(0|1), reset:int(0|1), 
+ * CBOR array: [asset_id:uint64, quantity:int, divisible:int(0|1), lock:int(0|1), reset:int(0|1),
  *              compacted_subasset_length:int, compacted_subasset_longname:bytes, mime_type:text, description:bytes|null]
  */
 export function decodeIssuanceSubasset(payload: Buffer): IssuanceSubassetPayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 7) {
     throw new Error('Invalid issuance subasset payload');
   }
-  
+
   const assetId = decoded[0]?.toString();
   const mimeType = decoded[7] || '';
-  
+
   let description = null;
   if (decoded[8]) {
     const descBuffer = Buffer.isBuffer(decoded[8]) ? decoded[8] : Buffer.from(decoded[8]);
     description = decodeTextOrHex(descBuffer, mimeType);
   }
-  
+
   return {
     asset: assetIdToName(assetId),
     quantity: decoded[1]?.toString(),
@@ -344,19 +344,19 @@ export function decodeIssuanceSubasset(payload: Buffer): IssuanceSubassetPayload
  */
 export function decodeBroadcast(payload: Buffer): BroadcastPayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 4) {
     throw new Error('Invalid broadcast payload');
   }
-  
+
   const mimeType = decoded[3] || '';
-  
+
   let text = '';
   if (decoded[4]) {
     const textBuffer = Buffer.isBuffer(decoded[4]) ? decoded[4] : Buffer.from(decoded[4]);
     text = decodeTextOrHex(textBuffer, mimeType);
   }
-  
+
   return {
     timestamp: decoded[0],
     value: decoded[1],
@@ -372,21 +372,21 @@ export function decodeBroadcast(payload: Buffer): BroadcastPayload {
  */
 export function decodeFairminter(payload: Buffer): FairminterPayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 17) {
     throw new Error('Invalid fairminter payload');
   }
-  
+
   const assetId = decoded[0]?.toString();
   const assetParentId = decoded[1]?.toString();
   const mimeType = decoded[17] || '';
-  
+
   let description = '';
   if (decoded[18]) {
     const descBuffer = Buffer.isBuffer(decoded[18]) ? decoded[18] : Buffer.from(decoded[18]);
     description = decodeTextOrHex(descBuffer, mimeType);
   }
-  
+
   return {
     asset: assetIdToName(assetId),
     asset_parent: assetIdToName(assetParentId),
@@ -416,13 +416,13 @@ export function decodeFairminter(payload: Buffer): FairminterPayload {
  */
 export function decodeFairmint(payload: Buffer): FairmintPayload {
   const decoded = cborDecode(payload);
-  
+
   if (!Array.isArray(decoded) || decoded.length < 2) {
     throw new Error('Invalid fairmint payload');
   }
-  
+
   const assetId = decoded[0]?.toString();
-  
+
   return {
     asset: assetIdToName(assetId),
     quantity: decoded[1]?.toString(),
@@ -436,11 +436,11 @@ export function decodeFairmint(payload: Buffer): FairmintPayload {
 export function decodeAttach(payload: Buffer): AttachPayload {
   const raw = payload.toString('utf8');
   const parts = raw.split('|');
-  
+
   if (parts.length < 2) {
     throw new Error('Invalid attach payload');
   }
-  
+
   return {
     asset: parts[0] || '',
     quantity: parts[1] || '',
@@ -459,7 +459,7 @@ export function decodeDetach(payload: Buffer): DetachPayload {
       destination: 'self',
     };
   }
-  
+
   // Otherwise it's a destination address
   return {
     destination: payload.toString('utf8'),
@@ -474,10 +474,10 @@ export function decodeOrder(payload: Buffer): OrderPayload {
   if (payload.length < 34) {
     throw new Error('Invalid order payload');
   }
-  
+
   const giveId = payload.readBigUInt64BE(0).toString();
   const getId = payload.readBigUInt64BE(16).toString();
-  
+
   return {
     give_asset: assetIdToName(giveId),
     give_quantity: payload.readBigInt64BE(8).toString(),
@@ -496,7 +496,7 @@ export function decodeBtcPay(payload: Buffer): BtcPayPayload {
   if (payload.length < 64) {
     throw new Error('Invalid btc_pay payload');
   }
-  
+
   return {
     tx0_hash: payload.subarray(0, 32).toString('hex'),
     tx1_hash: payload.subarray(32, 64).toString('hex'),
@@ -512,9 +512,9 @@ export function decodeDispenser(payload: Buffer, network: btc.Network): Dispense
   if (payload.length < 33) {
     throw new Error('Invalid dispenser payload');
   }
-  
+
   const assetId = payload.readBigUInt64BE(0).toString();
-  
+
   const result: DispenserPayload = {
     asset: assetIdToName(assetId),
     give_quantity: payload.readBigInt64BE(8).toString(),
@@ -522,7 +522,7 @@ export function decodeDispenser(payload: Buffer, network: btc.Network): Dispense
     satoshirate: payload.readBigInt64BE(24).toString(),
     status: payload.readUInt8(32),
   };
-  
+
   // Optional packed addresses
   if (payload.length >= 54) {
     const actionAddressBytes = payload.subarray(33, 54).toString('hex');
@@ -532,7 +532,7 @@ export function decodeDispenser(payload: Buffer, network: btc.Network): Dispense
     const oracleAddressBytes = payload.subarray(54, 75).toString('hex');
     result.oracle_address = shortAddressBytesToAddress(oracleAddressBytes, network);
   }
-  
+
   return result;
 }
 
@@ -557,21 +557,21 @@ export function decodeDividend(payload: Buffer): DividendPayload {
   if (payload.length < 16) {
     throw new Error('Invalid dividend payload');
   }
-  
+
   const assetId = payload.readBigUInt64BE(8).toString();
-  
+
   const result: DividendPayload = {
     quantity_per_unit: payload.readBigInt64BE(0).toString(),
     asset: assetIdToName(assetId),
     dividend_asset: 'XCP', // Default value, will be overwritten if present
   };
-  
+
   // New format includes dividend_asset_id
   if (payload.length >= 24) {
     const dividendAssetId = payload.readBigUInt64BE(16).toString();
     result.dividend_asset = assetIdToName(dividendAssetId);
   }
-  
+
   return result;
 }
 
@@ -583,7 +583,7 @@ export function decodeCancel(payload: Buffer): CancelPayload {
   if (payload.length < 32) {
     throw new Error('Invalid cancel payload');
   }
-  
+
   return {
     offer_hash: payload.subarray(0, 32).toString('hex'),
   };
@@ -597,27 +597,31 @@ export function decodeDestroy(payload: Buffer): DestroyPayload {
   if (payload.length < 16) {
     throw new Error('Invalid destroy payload');
   }
-  
+
   const assetId = payload.readBigUInt64BE(0).toString();
-  
+
   const result: DestroyPayload = {
     asset: assetIdToName(assetId),
     quantity: payload.readBigInt64BE(8).toString(),
   };
-  
+
   // Optional tag
   if (payload.length > 16) {
     const tagBytes = payload.subarray(16, Math.min(payload.length, 50));
     result.tag = tagBytes.toString('hex');
   }
-  
+
   return result;
 }
 
 /**
  * Decode message payload based on message type
  */
-export function decodePayload(messageId: number, payload: Buffer, network: btc.Network): TransactionPayload {
+export function decodePayload(
+  messageId: number,
+  payload: Buffer,
+  network: btc.Network,
+): TransactionPayload {
   try {
     switch (messageId) {
       case 2:
@@ -668,4 +672,3 @@ export function decodePayload(messageId: number, payload: Buffer, network: btc.N
     };
   }
 }
-

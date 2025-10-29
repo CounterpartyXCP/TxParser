@@ -32,4 +32,3 @@ export const MESSAGE_TYPES: Record<number, string> = {
   102: 'detach',
   110: 'destroy',
 };
-

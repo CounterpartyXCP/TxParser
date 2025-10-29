@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepare": "npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "npm run build && npx simple-git-hooks",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -42,6 +44,8 @@
     "@types/node": "^20",
     "@vitest/coverage-v8": "^4.0.5",
     "bitcoinjs-lib": "^7.0.0-rc.0",
+    "simple-git-hooks": "^2.10.0",
+    "prettier": "^3.3.3",
     "typescript": "^5",
     "vitest": "^4.0.5"
   },
@@ -49,5 +53,8 @@
     "dist",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "simple-git-hooks": {
+    "pre-push": "npm run format:check"
+  }
 }

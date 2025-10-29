@@ -39,7 +39,7 @@ export interface IssuancePayload {
 
 /**
  * Issuance Subasset (ID = 21, 23)
- * CBOR array: [asset_id:uint64, quantity:int, divisible:int(0|1), lock:int(0|1), reset:int(0|1), 
+ * CBOR array: [asset_id:uint64, quantity:int, divisible:int(0|1), lock:int(0|1), reset:int(0|1),
  *              compacted_subasset_length:int, compacted_subasset_longname:bytes, mime_type:text, description:bytes|null]
  */
 export interface IssuanceSubassetPayload {
@@ -238,4 +238,3 @@ export interface ParsedTransaction {
   message_id: number;
   params: TransactionPayload;
 }
-

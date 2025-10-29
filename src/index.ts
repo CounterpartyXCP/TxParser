@@ -1,6 +1,6 @@
 /**
  * Counterparty Transaction Parser
- * 
+ *
  * This module provides utilities for parsing Counterparty protocol transactions
  * from both OP_RETURN and Taproot reveal formats.
  */
@@ -32,4 +32,3 @@ export type {
   TaprootCommitPayload,
   UnknownPayload,
 } from './types';
-

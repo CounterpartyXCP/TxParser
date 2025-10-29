@@ -155,6 +155,7 @@ See [tests/README.md](./tests/README.md) for detailed test documentation.
 ### OP_RETURN Format
 
 Counterparty OP_RETURN messages are:
+
 1. Encrypted with RC4 using the first input's transaction ID as the key
 2. Prefixed with "CNTRPRTY" (8 bytes)
 3. Followed by message type ID (1 or 4 bytes)
@@ -163,6 +164,7 @@ Counterparty OP_RETURN messages are:
 ### Taproot Format
 
 Taproot reveal transactions use witness scripts with envelope patterns:
+
 - Generic envelope: `OP_FALSE OP_IF <data chunks> OP_ENDIF`
 - Ord/XCP envelope: `OP_FALSE OP_IF "ord" "xcp" <metadata> <content> OP_ENDIF`
 
@@ -180,4 +182,3 @@ MIT
 - [Counterparty Protocol](https://counterparty.io/)
 - [GitHub Repository](https://github.com/CounterpartyXCP/TxParser)
 - [Issue Tracker](https://github.com/CounterpartyXCP/TxParser/issues)
-

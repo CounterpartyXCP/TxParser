@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+echo "Checking code format with Prettier..."
+npm run format:check
+
