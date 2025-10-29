@@ -1,0 +1,32 @@
+# Source files (only ship compiled code)
+src/
+tsconfig.json
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Tests
+test/
+tests/
+*.test.ts
+*.spec.ts
+
+# Documentation source
+docs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+

@@ -1,0 +1,49 @@
+{
+  "name": "@counterpartyxcp/txparser",
+  "version": "1.0.0",
+  "description": "Counterparty protocol transaction parser for Bitcoin OP_RETURN and Taproot reveal formats",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "counterparty",
+    "bitcoin",
+    "xcp",
+    "transaction",
+    "parser",
+    "taproot",
+    "op-return"
+  ],
+  "author": "CounterpartyXCP",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CounterpartyXCP/TxParser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CounterpartyXCP/TxParser/issues"
+  },
+  "homepage": "https://github.com/CounterpartyXCP/TxParser#readme",
+  "peerDependencies": {
+    "bitcoinjs-lib": "^7.0.0-rc.0"
+  },
+  "dependencies": {
+    "cbor-x": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "bitcoinjs-lib": "^7.0.0-rc.0",
+    "typescript": "^5"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}
+
